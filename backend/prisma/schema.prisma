@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String    @id @default(uuid())
+  name      String
+  legalName String?
+  document  String?
+  email     String?
+  phone     String?
+  logo      String?
+  timezone  String    @default("America/Sao_Paulo")
+  status    String    @default("ACTIVE")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  users     UserWorkspace[]
+  persons   Person[]
+  services      Service[]
+  resources     Resource[]
+  scheduleRules ScheduleRule[]
+  sessions      Session[]
+  contracts     Contract[]
+  packages      Package[]
+  payments      Payment[]
+  notifications Notification[]
+  configs       SystemConfig[]
+  logs          SystemLog[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  status       String    @default("ACTIVE")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  workspaces   UserWorkspace[]
+}
+
+model UserWorkspace {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        String    // OWNER, ADMIN, PROFESSIONAL, RECEPTIONIST, FINANCIAL
+  isOwner     Boolean   @default(false)
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+}
+
+model Person {
+  id           String    @id @default(uuid())
+  workspaceId  String
+  name         String
+  cpf          String?
+  birthDate    DateTime?
+  gender       String?
+  phone        String?
+  email        String?
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  district     String?
+  city         String?
+  state        String?
+  notes        String?
+  active       Boolean   @default(true)
+  
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  professional ProfessionalProfile?
+  client       ClientProfile?
+  scheduleRules ScheduleRule[]
+  sessions      Session[]
+  attendances   Attendance[]
+  contracts     Contract[]
+  packages      Package[]
+  payments      Payment[]
+}
+
+model ProfessionalProfile {
+  personId        String   @id
+  crefito         String?
+  specialty       String?
+  pixKey          String?
+  commissionType  String?
+  commissionValue Float?
+
+  person          Person   @relation(fields: [personId], references: [id])
+}
+
+model ClientProfile {
+  personId         String   @id
+  emergencyContact String?
+  emergencyPhone   String?
+  observations     String?
+
+  person           Person   @relation(fields: [personId], references: [id])
+}
+
+model Service {
+  id          String     @id @default(uuid())
+  workspaceId String
+  name        String
+  color       String?
+  active      Boolean    @default(true)
+  
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id])
+  offerings   Offering[]
+}
+
+model Offering {
+  id              String   @id @default(uuid())
+  serviceId       String
+  name            String
+  mode            String   // INDIVIDUAL, GROUP, EVALUATION
+  durationMinutes Int
+  capacity        Int      @default(1)
+  defaultPrice    Float?
+  color           String?
+  active          Boolean  @default(true)
+
+  service         Service  @relation(fields: [serviceId], references: [id])
+  scheduleRules   ScheduleRule[]
+  sessions        Session[]
+  packages        Package[]
+}
+
+model Resource {
+  id          String    @id @default(uuid())
+  workspaceId String
+  type        String    // ROOM, CABIN, EQUIPMENT
+  name        String
+  description String?
+  capacity    Int       @default(1)
+  color       String?
+  active      Boolean   @default(true)
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model ScheduleRule {
+  id                 String    @id @default(uuid())
+  workspaceId        String
+  offeringId         String
+  professionalId     String
+  resourceId         String?
+  weekday            String    // MONDAY, TUESDAY, etc
+  startMinute        Int       // Minutes from midnight
+  endMinute          Int       // Minutes from midnight
+  startDate          DateTime
+  endDate            DateTime?
+  recurrenceInterval Int       @default(1)
+  active             Boolean   @default(true)
+
+  workspace          Workspace @relation(fields: [workspaceId], references: [id])
+  offering           Offering  @relation(fields: [offeringId], references: [id])
+  professional       Person    @relation(fields: [professionalId], references: [id])
+  sessions           Session[]
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  workspaceId    String
+  scheduleRuleId String?
+  offeringId     String
+  professionalId String
+  resourceId     String?
+  sessionDate    DateTime
+  startMinute    Int
+  endMinute      Int
+  status         String    @default("SCHEDULED") // SCHEDULED, COMPLETED, CANCELED
+  notes          String?
+
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id])
+  scheduleRule   ScheduleRule? @relation(fields: [scheduleRuleId], references: [id])
+  offering       Offering      @relation(fields: [offeringId], references: [id])
+  professional   Person        @relation(fields: [professionalId], references: [id])
+  attendances    Attendance[]
+}
+
+model Enrollment {
+  id             String       @id @default(uuid())
+  scheduleRuleId String
+  personId       String
+  active         Boolean      @default(true)
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  sessionId String
+  personId  String
+  status    String   @default("PRESENT") // PRESENT, ABSENT
+  checkInAt DateTime?
+  notes     String?
+
+  session   Session  @relation(fields: [sessionId], references: [id])
+  person    Person   @relation(fields: [personId], references: [id])
+}
+
+model Contract {
+  id          String    @id @default(uuid())
+  workspaceId String
+  personId    String
+  startDate   DateTime
+  endDate     DateTime?
+  status      String    @default("ACTIVE") // ACTIVE, CANCELED, COMPLETED
+  totalAmount Float?
+  notes       String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  person      Person    @relation(fields: [personId], references: [id])
+  payments    Payment[]
+}
+
+model Package {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  personId        String
+  offeringId      String
+  totalSessions   Int
+  usedSessions    Int       @default(0)
+  status          String    @default("ACTIVE") // ACTIVE, CONSUMED, EXPIRED
+  price           Float
+  expirationDate  DateTime?
+
+  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+  person          Person    @relation(fields: [personId], references: [id])
+  offering        Offering  @relation(fields: [offeringId], references: [id])
+  payments        Payment[]
+}
+
+model Payment {
+  id          String    @id @default(uuid())
+  workspaceId String
+  contractId  String?
+  packageId   String?
+  personId    String
+  amount      Float
+  dueDate     DateTime
+  paidDate    DateTime?
+  status      String    @default("PENDING") // PENDING, PAID, OVERDUE, CANCELED
+  method      String?   // PIX, CREDIT_CARD, CASH
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  contract    Contract? @relation(fields: [contractId], references: [id])
+  package     Package?  @relation(fields: [packageId], references: [id])
+  person      Person    @relation(fields: [personId], references: [id])
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String?
+  title       String
+  content     String
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model SystemConfig {
+  id          String    @id @default(uuid())
+  workspaceId String
+  key         String
+  value       String
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, key])
+}
+
+model SystemLog {
+  id          String    @id @default(uuid())
+  workspaceId String
+  userId      String?
+  action      String
+  entity      String
+  entityId    String
+  details     String?
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+}
